@@ -14,7 +14,7 @@ const TransactionForm = ({ onTransactionAdded }) => {
     try {
       await api.post('/transactions', formData);
       setFormData({ amount: '', category: 'Salary', type: 'income', description: '' });
-      onTransactionAdded(); // Refreshes the list in Dashboard.jsx
+      onTransactionAdded(); 
     } catch (err) {
       alert("Error saving transaction");
     }

@@ -1,7 +1,6 @@
 const mongoose = require('mongoose');
 
 const UserSchema = new mongoose.Schema({
- 
   firebaseId: { 
     type: String, 
     required: true, 
@@ -24,11 +23,9 @@ const UserSchema = new mongoose.Schema({
     type: String, 
     enum: ['low', 'middle', 'high'], 
     default: 'middle'
-  },
-  createdAt: { 
-    type: Date, 
-    default: Date.now 
   }
+}, { 
+  timestamps: true 
 });
 
 module.exports = mongoose.model('User', UserSchema);

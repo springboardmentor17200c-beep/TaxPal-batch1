@@ -1,5 +1,6 @@
+
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth } from "../firebase/config";
 
 const AuthContext = createContext();
@@ -9,20 +10,21 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // onAuthStateChanged listens for the user session from Firebase
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
-      setLoading(false); // Authentication check is finished
+      setLoading(false);
     });
-
     return () => unsubscribe();
   }, []);
 
+  // NEW: Add a logout function to use across the app
+  const logout = () => signOut(auth);
+
   return (
-    // We pass both 'user' and 'loading' so App.jsx can make smart routing decisions
-    <AuthContext.Provider value={{ user, loading }}>
+    <AuthContext.Provider value={{ user, loading, logout }}>
       {!loading ? children : (
         <div style={loadingContainer}>
+          <div className="spinner"></div> {/* Professional touch */}
           <p>Initializing TaxPal...</p>
         </div>
       )}
@@ -32,11 +34,12 @@ export const AuthProvider = ({ children }) => {
 
 export const useAuth = () => useContext(AuthContext);
 
-// Simple loading style
 const loadingContainer = {
   display: 'flex',
+  flexDirection: 'column',
   justifyContent: 'center',
   alignItems: 'center',
   height: '100vh',
-  fontFamily: 'Arial, sans-serif'
+  fontFamily: 'Inter, sans-serif',
+  color: '#64748b'
 };
