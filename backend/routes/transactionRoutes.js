@@ -17,7 +17,7 @@ router.post('/', protect, async (req, res) => {
         return res.status(400).json({ message: "Type, Category, and Amount are required" });
     }
 
-    // FIXED: Changed user_id to firebaseId to match your Model Schema
+    // Use firebaseId from authenticated user
     const transaction = await Transaction.create({
       firebaseId: req.user.uid, 
       type: type.toLowerCase(), 
@@ -32,7 +32,7 @@ router.post('/', protect, async (req, res) => {
     res.status(201).json(transaction);
   } catch (error) {
     console.error("❌ DATABASE ERROR:", error.message);
-    res.status(400).json({ message: "Bad Request", details: error.message });
+    res.status(400).json({ message: "Failed to save transaction. Please check your network or server.", details: error.message });
   }
 });
 
