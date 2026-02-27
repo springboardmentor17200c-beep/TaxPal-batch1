@@ -9,6 +9,10 @@ dotenv.config();
 const connectDB = require('./config/db');
 const transactionRoutes = require('./routes/transactionRoutes');
 const userRoutes = require('./routes/userRoutes');
+const budgetRoutes = require('./routes/budgetRoutes'); 
+const categoryRoutes = require('./routes/categoryRoutes'); 
+const taxRoutes = require('./routes/taxRoutes'); 
+const reportRoutes = require('./routes/reportRoutes');
 
 // 3. Initialize Database
 connectDB();
@@ -17,20 +21,30 @@ const app = express();
 
 // 4. Middleware
 app.use(cors());
-
-
 app.use(express.json());
 
 // 5. Routes
 app.get('/', (req, res) => res.send('TaxPal API is running...'));
 
-
+// User Auth Routes
 app.use('/api/users', userRoutes);
 
-
+// Transaction Routes (General income/expense)
 app.use('/api/transactions', transactionRoutes);
 
-// 6. Global Error Handler (Optional but recommended for Milestone 2)
+// Budget Routes (Dedicated logic for spending vs limits)
+app.use('/api/budgets', budgetRoutes); 
+
+// Category Management Routes
+app.use('/api/categories', categoryRoutes); 
+
+// Tax Estimator Routes
+app.use('/api/tax', taxRoutes); 
+
+// Financial Report Routes
+app.use('/api/reports', reportRoutes); // ADDED: Mount the report generation endpoint
+
+// 6. Global Error Handler
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({ message: 'Something went wrong on the server!' });

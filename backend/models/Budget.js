@@ -1,27 +1,34 @@
 const mongoose = require('mongoose');
 
 const BudgetSchema = new mongoose.Schema({
-  user_id: { 
+  firebaseId: { 
     type: String, 
-    required: true,
-    index: true
-  },
+    required: true 
+  }, 
   category: { 
     type: String, 
     required: true 
+  },
+
+  type: {
+    type: String,
+    required: true,
+    enum: ['income', 'expense'], 
+    default: 'expense'
   },
   amount: { 
     type: Number, 
     required: true 
   },
   month: { 
-    type: String, 
+    type: Date, 
     required: true 
-  },
+  }, 
   description: { 
-    type: String,
-    default: ""
+    type: String 
   }
-}, { timestamps: true });
+}, { 
+  timestamps: true 
+});
 
 module.exports = mongoose.model('Budget', BudgetSchema);

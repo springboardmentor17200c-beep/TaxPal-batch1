@@ -1,3 +1,4 @@
+
 const express = require('express');
 const router = express.Router();
 const Transaction = require('../models/Transaction');
@@ -7,17 +8,12 @@ const { protect } = require('../middleware/authMiddleware');
 // --- 1. RECORD NEW TRANSACTION ---
 router.post('/', protect, async (req, res) => {
   try {
-    console.log("--- INCOMING REQUEST ---");
-    console.log("Authenticated User UID:", req.user ? req.user.uid : "MISSING");
-    console.log("Request Body:", req.body);
-
     const { type, category, amount, description, date, notes } = req.body;
 
     if (!type || !category || !amount) {
         return res.status(400).json({ message: "Type, Category, and Amount are required" });
     }
 
-    // FIXED: Changed user_id to firebaseId to match your Model Schema
     const transaction = await Transaction.create({
       firebaseId: req.user.uid, 
       type: type.toLowerCase(), 
@@ -28,10 +24,8 @@ router.post('/', protect, async (req, res) => {
       notes: notes || ""
     });
 
-    console.log("✅ SUCCESS: Transaction saved to DB");
     res.status(201).json(transaction);
   } catch (error) {
-    console.error("❌ DATABASE ERROR:", error.message);
     res.status(400).json({ message: "Bad Request", details: error.message });
   }
 });
@@ -39,7 +33,6 @@ router.post('/', protect, async (req, res) => {
 // --- 2. GET ALL TRANSACTIONS ---
 router.get('/', protect, async (req, res) => {
   try {
-    // FIXED: Search by firebaseId
     const transactions = await Transaction.find({ firebaseId: req.user.uid }).sort({ date: -1 });
     res.json(transactions);
   } catch (error) {
@@ -47,18 +40,50 @@ router.get('/', protect, async (req, res) => {
   }
 });
 
-// --- 3. EXPENSE BREAKDOWN (Pie Chart) ---
+// --- 3. UPDATED: EXPENSE BREAKDOWN (Pie Chart with Percentages) ---
 router.get('/breakdown', protect, async (req, res) => {
   try {
     const breakdown = await Transaction.aggregate([
-      { $match: { firebaseId: req.user.uid, type: 'expense' } }, // FIXED: firebaseId
+      // 1. Match only this user's expenses
+      { $match: { firebaseId: req.user.uid, type: 'expense' } },
+      
+      // 2. Group by category to get sums
       {
         $group: {
           _id: "$category",
           totalAmount: { $sum: "$amount" }
         }
-      }
+      },
+
+      // 3. Group again to calculate the 'Grand Total' of all expenses
+      {
+        $group: {
+          _id: null,
+          totalAll: { $sum: "$totalAmount" },
+          categories: { $push: { category: "$_id", amount: "$totalAmount" } }
+        }
+      },
+
+      // 4. Unwind the categories and calculate the percentage for each
+      { $unwind: "$categories" },
+      {
+        $project: {
+          _id: 0,
+          category: "$categories.category",
+          amount: "$categories.amount",
+          percentage: { 
+            $cond: [
+              { $eq: ["$totalAll", 0] }, 
+              0, 
+              { $multiply: [{ $divide: ["$categories.amount", "$totalAll"] }, 100] }
+            ]
+          }
+        }
+      },
+      // 5. Sort by highest spending
+      { $sort: { amount: -1 } }
     ]);
+
     res.json(breakdown);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -69,7 +94,7 @@ router.get('/breakdown', protect, async (req, res) => {
 router.get('/stats', protect, async (req, res) => {
   try {
     const stats = await Transaction.aggregate([
-      { $match: { firebaseId: req.user.uid } }, // FIXED: firebaseId
+      { $match: { firebaseId: req.user.uid } }, 
       {
         $group: {
           _id: {
@@ -92,9 +117,9 @@ router.post('/budget', protect, async (req, res) => {
   try {
     const { category, amount, month, description } = req.body;
     const budget = await Budget.create({
-      firebaseId: req.user.uid, // FIXED: firebaseId
+      firebaseId: req.user.uid,
       category,
-      amount,
+      amount: Number(amount),
       month,
       description
     });

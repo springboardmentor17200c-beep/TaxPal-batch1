@@ -1,165 +1,273 @@
-import React, { useState } from "react";
+
+
+import React, { useState, useEffect, useCallback } from "react";
+import api from "../api/axios";
+import { auth } from "../firebase/config"; 
+import { onAuthStateChanged } from "firebase/auth";
 
 const TaxEstimator = () => {
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [history, setHistory] = useState([]);
   const [income, setIncome] = useState("");
   const [deductions, setDeductions] = useState({
-    section80C: "",
-    section80D: "",
-    hra: "",
-    other: ""
+    business: "",
+    retirement: "",
+    health: "",
+    homeOffice: ""
   });
+  
+
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+  const isMobile = windowWidth < 768;
+  const isTablet = windowWidth < 1024;
+
+  const [userId, setUserId] = useState(null);
+  const [params, setParams] = useState({
+    year: 2026,
+    quarter: "Q1 (Apr-Jun 2026)",
+    state: "", 
+    filingStatus: "Individual"
+  });
+
   const [calculation, setCalculation] = useState(null);
 
-  const handleCalculate = () => {
-   
-    const totalDeductions = Object.values(deductions).reduce((a, b) => Number(a) + Number(b), 0);
-    const taxableIncome = Math.max(0, Number(income) - totalDeductions);
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const fetchHistory = useCallback(async () => {
+    if (!userId) return;
+    try {
+      const response = await api.get(`/tax/history?uid=${userId}`);
+      setHistory(response.data);
+    } catch (err) {
+      console.error("Failed to fetch tax history", err);
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setUserId(user.uid);
+      } else {
+        setUserId(null);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    fetchHistory();
+  }, [fetchHistory]);
+
+  const handleCalculate = async () => {
+    if (!userId) return alert("Please login first.");
+    if (!params.state) return alert("Please select a State/Province.");
     
-    const estimatedTax = taxableIncome * 0.20; 
-    setCalculation({ taxableIncome, estimatedTax });
+    setLoading(true);
+    const totalDeductions = Object.values(deductions).reduce((a, b) => Number(a) + Number(b), 0);
+    
+    const payload = {
+      income: Number(income),
+      deductions: totalDeductions,
+      quarter: params.quarter.split(' ')[0],
+      year: params.year,
+      firebaseId: userId 
+    };
+
+    try {
+      const response = await api.post("/tax/calculate", payload);
+      setCalculation(response.data);
+      fetchHistory(); 
+    } catch (err) {
+      alert("Error saving calculation.");
+    } finally {
+      setLoading(false);
+    }
   };
 
+  const getDueDate = (q, year) => {
+    const dates = { 
+        'Q1': `Jun 15, ${year}`, 
+        'Q2': `Sep 15, ${year}`, 
+        'Q3': `Dec 15, ${year}`, 
+        'Q4': `Mar 15, ${year + 1}` 
+    };
+    return dates[q] || "TBD";
+  };
+
+  if (userId === null) {
+    return (
+        <div style={{padding: "100px 20px", textAlign: "center", fontFamily: "Inter, sans-serif"}}>
+            <h2 style={{color: "#1e293b"}}>Authentication Required</h2>
+            <p style={{color: "#64748b"}}>Please sign in to access your 2026 Tax Estimator records.</p>
+        </div>
+    );
+  }
+
   return (
-    <div style={container}>
-      <header style={header}>
-        <h2 style={title}>Income Tax Estimator</h2>
-        <p style={subtitle}>Calculate your estimated tax obligations (FY 2025-26)</p>
+    <div style={{...container, padding: isMobile ? "16px" : "32px"}}>
+      <header style={{
+        ...headerFlex, 
+        flexDirection: isMobile ? 'column' : 'row',
+        gap: isMobile ? '20px' : '0'
+      }}>
+        <div>
+          <h2 style={title}>Tax Estimator</h2>
+          <p style={subtitle}>FY 2026-27 | ID: {userId.substring(0, 8)}...</p>
+        </div>
+        {!showCalendar && (
+          <button style={{...secondaryBtn, width: isMobile ? '100%' : 'auto'}} onClick={() => setShowCalendar(true)}>
+            📅 View Tax Calendar
+          </button>
+        )}
       </header>
 
-      <div style={mainGrid}>
-      
-        <div style={card}>
-          <h3 style={cardTitle}>Tax Calculator (India)</h3>
-          <div style={formGrid}>
-            <div style={inputGroup}>
-              <label style={label}>Assessment Year</label>
-              <select style={input}><option>AY 2026-27</option></select>
-            </div>
-            <div style={inputGroup}>
-              <label style={label}>State / UT</label>
-              <select style={input}>
-                <option>Karnataka</option>
-                <option>Maharashtra</option>
-                <option>Tamil Nadu</option>
-                <option>Delhi</option>
-             
-              </select>
-            </div>
-            <div style={inputGroup}>
-              <label style={label}>Tax Regime</label>
-              <select style={input}>
-                <option>New Regime (Section 115BAC)</option>
-                <option>Old Regime</option>
-              </select>
-            </div>
-            <div style={inputGroup}>
-              <label style={label}>Age Group</label>
-              <select style={input}>
-                <option>Below 60 years</option>
-                <option>60 - 80 years (Senior)</option>
-              </select>
-            </div>
-            
-            <div style={{...inputGroup, gridColumn: "span 2"}}>
-              <label style={label}>Annual Gross Salary / Income</label>
-              <div style={currencyWrapper}>
-                <span style={currencySymbol}>₹</span>
-                <input 
-                  type="number" 
-                  placeholder="0.00" 
-                  style={currencyInput} 
-                  value={income}
-                  onChange={(e) => setIncome(e.target.value)}
-                />
+      {showCalendar ? (
+        <div style={{...calendarOverlay, padding: isMobile ? '20px' : '40px'}}>
+          <div style={{...calendarHeader, flexDirection: isMobile ? 'column' : 'row', gap: '10px', alignItems: isMobile ? 'flex-start' : 'center'}}>
+            <h3 style={cardTitle}>Tax Calendar</h3>
+            <button style={closeBtn} onClick={() => setShowCalendar(false)}>✕ Close</button>
+          </div>
+          <div style={calendarList}>
+            {history.length > 0 ? history.map((item) => (
+              <div key={item._id} style={monthSection}>
+                <h4 style={monthHeader}>
+                    {getDueDate(item.quarter, item.year).split(' ')[0]} {item.quarter === 'Q4' ? item.year + 1 : item.year}
+                </h4>
+                <div style={eventCard}>
+                  <div style={eventHeaderRow}>
+                    <span style={eventTitle}>Reminder: {item.quarter} Payment</span>
+                    <span style={reminderTag}>reminder</span>
+                  </div>
+                  <div style={eventDate}>{getDueDate(item.quarter, item.year).replace('15', '01')}</div>
+                </div>
+                <div style={eventCard}>
+                  <div style={eventHeaderRow}>
+                    <span style={eventTitle}>{item.quarter} Due Date</span>
+                    <span style={paymentTag}>payment</span>
+                  </div>
+                  <div style={eventDate}>{getDueDate(item.quarter, item.year)}</div>
+                  <div style={eventDesc}>Amount: ₹{item.estimatedTax.toLocaleString('en-IN')}</div>
+                </div>
               </div>
+            )) : <p style={emptyText}>No data synced.</p>}
+          </div>
+        </div>
+      ) : (
+        <div style={{...mainGrid, gridTemplateColumns: isTablet ? "1fr" : "1fr 380px"}}>
+          <div style={{...card, padding: isMobile ? '20px' : '32px'}}>
+            <h3 style={cardTitle}>Quarterly Tax Calculator</h3>
+            <div style={{...formGrid, gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr"}}>
+              <div style={inputGroup}><label style={label}>Country</label><select style={input} disabled><option>India</option></select></div>
+              <div style={inputGroup}>
+                <label style={label}>State/Province</label>
+                <select style={input} value={params.state} onChange={(e) => setParams({...params, state: e.target.value})}>
+                  <option value="" disabled>Select State</option>
+                  <option>Delhi</option><option>Karnataka</option><option>Maharashtra</option><option>Tamilnadu</option><option>West Bengal</option>
+                </select>
+              </div>
+              <div style={inputGroup}><label style={label}>Filing Status</label><select style={input}><option>Individual</option><option>HUF</option></select></div>
+              <div style={inputGroup}>
+                <label style={label}>Quarter</label>
+                <select style={input} value={params.quarter} onChange={(e) => setParams({...params, quarter: e.target.value})}>
+                  <option>Q1 (Apr-Jun 2026)</option><option>Q2 (Jul-Sep 2026)</option><option>Q3 (Oct-Dec 2026)</option><option>Q4 (Jan-Mar 2027)</option>
+                </select>
+              </div>
+              <h4 style={sectionDivider}>Income</h4>
+              <div style={{...inputGroup, gridColumn: isMobile ? "span 1" : "span 2"}}>
+                <label style={label}>Gross Income</label>
+                <div style={currencyWrapper}><span style={currencySymbol}>₹</span><input type="number" style={currencyInput} value={income} onChange={(e) => setIncome(e.target.value)} /></div>
+              </div>
+              <h4 style={sectionDivider}>Deductions</h4>
+              <div style={inputGroup}><label style={label}>Business</label><input type="number" placeholder="₹ 0" style={input} onChange={(e) => setDeductions({...deductions, business: e.target.value})} /></div>
+              <div style={inputGroup}><label style={label}>Retirement</label><input type="number" placeholder="₹ 0" style={input} onChange={(e) => setDeductions({...deductions, retirement: e.target.value})} /></div>
+              <div style={inputGroup}><label style={label}>Health</label><input type="number" placeholder="₹ 0" style={input} onChange={(e) => setDeductions({...deductions, health: e.target.value})} /></div>
+              <div style={inputGroup}><label style={label}>Office</label><input type="number" placeholder="₹ 0" style={input} onChange={(e) => setDeductions({...deductions, homeOffice: e.target.value})} /></div>
             </div>
-
-            <h4 style={sectionHeader}>Exemptions & Deductions (Old Regime)</h4>
-            <div style={inputGroup}>
-              <label style={label}>80C (LIC, PPF, ELSS)</label>
-              <input 
-                type="number" 
-                placeholder="₹ 0.00" 
-                style={input} 
-                onChange={(e) => setDeductions({...deductions, section80C: e.target.value})}
-              />
-            </div>
-            <div style={inputGroup}>
-              <label style={label}>80D (Health Insurance)</label>
-              <input 
-                type="number" 
-                placeholder="₹ 0.00" 
-                style={input} 
-                onChange={(e) => setDeductions({...deductions, section80D: e.target.value})}
-              />
-            </div>
-            <div style={inputGroup}>
-              <label style={label}>HRA Exemption</label>
-              <input 
-                type="number" 
-                placeholder="₹ 0.00" 
-                style={input} 
-                onChange={(e) => setDeductions({...deductions, hra: e.target.value})}
-              />
-            </div>
-            <div style={inputGroup}>
-              <label style={label}>Standard Deduction</label>
-              <input type="number" value="50000" disabled style={{...input, backgroundColor: '#f1f5f9'}} />
+            <div style={btnContainer}>
+              <button style={{...calculateBtn, width: isMobile ? '100%' : 'auto'}} onClick={handleCalculate} disabled={loading}>{loading ? "Saving..." : "Calculate & Sync"}</button>
             </div>
           </div>
-          <button style={calculateBtn} onClick={handleCalculate}>Calculate Estimated Tax</button>
-        </div>
-
-        <div style={summaryCard}>
-          <h3 style={cardTitle}>Tax Summary</h3>
-          {!calculation ? (
-            <div style={summaryEmpty}>
-              <div style={summaryIcon}>📊</div>
-              <p>Enter your income details to see your tax breakdown.</p>
+          
+          <div style={sidebar}>
+            <div style={summaryCard}>
+              <h3 style={cardTitle}>Tax Summary</h3>
+              {!calculation ? (
+                <div style={summaryEmpty}><div style={summaryIcon}>📄</div><p style={emptyText}>Enter details to sync.</p></div>
+              ) : (
+                <div style={resultContainer}>
+                  <div style={resultRow}><span>Taxable:</span><span style={boldText}>₹{calculation.income.toLocaleString('en-IN')}</span></div>
+                  <div style={resultRow}><span>Estimated Tax:</span><span style={taxText}>₹{calculation.estimatedTax.toLocaleString('en-IN')}</span></div>
+                  <p style={disclaimer}>✔ Sync successful</p>
+                </div>
+              )}
             </div>
-          ) : (
-            <div style={resultContainer}>
-               <div style={resultRow}>
-                  <span>Taxable Income:</span>
-                  <span style={boldText}>₹{calculation.taxableIncome.toLocaleString('en-IN')}</span>
-               </div>
-               <div style={resultRow}>
-                  <span>Estimated Tax:</span>
-                  <span style={taxText}>₹{calculation.estimatedTax.toLocaleString('en-IN')}</span>
-               </div>
-               <p style={disclaimer}>*Estimates based on current slab rates excluding Cess.</p>
+            <div style={historyCard}>
+              <h4 style={{fontSize: '14px', margin: '0 0 16px 0', color: '#1e293b'}}>Recent Records</h4>
+              {history.length > 0 ? history.slice(0, 3).map((item) => (
+                <div key={item._id} style={historyItem}>
+                  <div style={statusDot}></div>
+                  <div style={{flex: 1}}><div style={{fontWeight: '600', fontSize: '13px'}}>{item.quarter} {item.year}</div></div>
+                  <div style={historyAmount}>₹{item.estimatedTax.toLocaleString()}</div>
+                </div>
+              )) : <p style={emptyText}>No data found.</p>}
             </div>
-          )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };
 
 // --- STYLES ---
-const container = { animation: "fadeIn 0.4s ease" };
-const header = { marginBottom: "24px" };
-const title = { margin: 0, fontSize: "24px", fontWeight: "700", color: "#0f172a" };
-const subtitle = { color: "#64748b", fontSize: "14px" };
-const mainGrid = { display: "grid", gridTemplateColumns: "1fr 350px", gap: "24px", alignItems: "start" };
-const card = { background: "#fff", padding: "24px", borderRadius: "12px", border: "1px solid #e2e8f0" };
-const cardTitle = { fontSize: "16px", fontWeight: "600", marginBottom: "20px", color: "#1e293b" };
-const formGrid = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" };
-const inputGroup = { display: "flex", flexDirection: "column", gap: "6px" };
-const label = { fontSize: "12px", fontWeight: "600", color: "#475569", textTransform: "uppercase", letterSpacing: "0.5px" };
-const input = { padding: "10px", borderRadius: "8px", border: "1px solid #e2e8f0", fontSize: "14px", outline: "none", color: "#1e293b" };
+const container = { maxWidth: "1200px", margin: "0 auto", fontFamily: "Inter, sans-serif" };
+const headerFlex = { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "32px" };
+const title = { margin: 0, fontSize: "24px", fontWeight: "700", color: "#1e293b" };
+const subtitle = { color: "#64748b", fontSize: "14px", marginTop: "4px" };
+const secondaryBtn = { padding: "10px 18px", background: "#fff", border: "1px solid #e2e8f0", borderRadius: "8px", color: "#475569", fontWeight: "600", cursor: "pointer", fontSize: "14px" };
+const mainGrid = { display: "grid", gap: "32px", alignItems: "start" };
+const sidebar = { display: "flex", flexDirection: "column", gap: "24px" };
+const card = { background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0" };
+const cardTitle = { fontSize: "16px", fontWeight: "600", color: "#1e293b", margin: 0 };
+const calendarOverlay = { background: "#fff", borderRadius: "12px", border: "1px solid #e2e8f0", minHeight: "500px" };
+const calendarHeader = { display: "flex", justifyContent: "space-between", marginBottom: "32px", borderBottom: "1px solid #f1f5f9", paddingBottom: "20px" };
+const closeBtn = { background: "none", border: "none", color: "#ef4444", fontWeight: "600", cursor: "pointer" };
+const calendarList = { display: "flex", flexDirection: "column", gap: "32px", maxWidth: "800px" };
+const monthSection = { display: "flex", flexDirection: "column", gap: "12px" };
+const monthHeader = { fontSize: "12px", fontWeight: "800", color: "#64748b", textTransform: "uppercase" };
+const eventCard = { padding: "16px", border: "1px solid #f1f5f9", borderRadius: "8px", background: "#fcfcfc" };
+const eventHeaderRow = { display: "flex", justifyContent: "space-between" };
+const eventTitle = { fontSize: "14px", fontWeight: "600" };
+const eventDate = { fontSize: "12px", color: "#64748b" };
+const eventDesc = { fontSize: "12px", color: "#3b82f6", marginTop: "4px", fontWeight: "500" };
+const reminderTag = { fontSize: "10px", fontWeight: "700", padding: "2px 8px", borderRadius: "10px", background: "#eff6ff", color: "#3b82f6" };
+const paymentTag = { fontSize: "10px", fontWeight: "700", padding: "2px 8px", borderRadius: "10px", background: "#fffbeb", color: "#d97706" };
+const formGrid = { display: "grid", gap: "20px" };
+const inputGroup = { display: "flex", flexDirection: "column", gap: "8px" };
+const label = { fontSize: "12px", fontWeight: "600", color: "#64748b" };
+const input = { padding: "10px 12px", borderRadius: "6px", border: "1px solid #e2e8f0", fontSize: "14px" };
+const sectionDivider = { gridColumn: "span 2", margin: "16px 0 8px 0", fontSize: "13px", fontWeight: "700" };
 const currencyWrapper = { position: "relative" };
-const currencySymbol = { position: "absolute", left: "12px", top: "10px", color: "#64748b", fontWeight: "bold" };
-const currencyInput = { ...input, width: "100%", paddingLeft: "28px" };
-const sectionHeader = { gridColumn: "span 2", margin: "20px 0 10px 0", fontSize: "13px", color: "#3b82f6", fontWeight: "700", borderBottom: "1px solid #eff6ff", paddingBottom: "5px" };
-const calculateBtn = { marginTop: "24px", width: "100%", padding: "12px", background: "#0f172a", color: "#fff", border: "none", borderRadius: "8px", fontWeight: "600", cursor: "pointer" };
-const summaryCard = { ...card, minHeight: "350px", background: "#f8fafc" };
-const summaryEmpty = { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", color: "#94a3b8", paddingTop: "60px" };
-const summaryIcon = { fontSize: "48px", marginBottom: "16px" };
-const resultContainer = { display: "flex", flexDirection: "column", gap: "16px" };
-const resultRow = { display: "flex", justifyContent: "space-between", fontSize: "15px", padding: "12px 0", borderBottom: "1px solid #e2e8f0" };
-const boldText = { fontWeight: "700", color: "#1e293b" };
-const taxText = { fontWeight: "800", color: "#ef4444", fontSize: "18px" };
-const disclaimer = { fontSize: "11px", color: "#94a3b8", marginTop: "20px", fontStyle: "italic" };
+const currencySymbol = { position: "absolute", left: "12px", top: "11px", color: "#94a3b8" };
+const currencyInput = { ...input, width: "100%", paddingLeft: "24px" };
+const btnContainer = { display: "flex", justifyContent: "flex-end", marginTop: "32px" };
+const calculateBtn = { padding: "12px 24px", background: "#3b82f6", color: "#fff", border: "none", borderRadius: "6px", fontWeight: "600", cursor: "pointer" };
+const summaryCard = { ...card, padding: "32px", minHeight: "200px" };
+const historyCard = { ...card, padding: "24px" };
+const summaryEmpty = { textAlign: "center", paddingTop: "40px" };
+const summaryIcon = { fontSize: "32px", color: "#e2e8f0" };
+const emptyText = { fontSize: "12px", color: "#94a3b8" };
+const resultContainer = { display: "flex", flexDirection: "column", gap: "12px" };
+const resultRow = { display: "flex", justifyContent: "space-between", fontSize: "14px" };
+const boldText = { fontWeight: "700" };
+const taxText = { fontWeight: "700", fontSize: "16px" };
+const disclaimer = { fontSize: "11px", color: "#10b981" };
+const historyItem = { display: "flex", alignItems: "center", gap: "10px", padding: "8px 0", borderBottom: "1px solid #f1f5f9" };
+const statusDot = { width: "6px", height: "6px", borderRadius: "50%", background: "#3b82f6" };
+const historyAmount = { fontWeight: "600", fontSize: "13px" };
 
 export default TaxEstimator;

@@ -35,7 +35,7 @@ const Register = () => {
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
 
-      // Save info to MongoDB UserSchema
+     
       await api.post('/users', {
         firebaseId: user.uid,
         name: user.displayName || formData.fullName || "Google User",
@@ -64,11 +64,11 @@ const Register = () => {
 
     setLoading(true);
     try {
-      // 1. Create user in Firebase (This automatically signs them in)
+      // Create user in Firebase (This automatically signs them in)
       const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
       const user = userCredential.user;
 
-      // 2. Save info to MongoDB UserSchema
+    
       await api.post('/users', {
         firebaseId: user.uid,
         name: formData.fullName,
@@ -77,15 +77,15 @@ const Register = () => {
         income_bracket: formData.incomeBracket,
       });
 
-      // 3. THE KEY STEP: Sign out immediately so they aren't auto-logged in!
+      // THE KEY STEP: Sign out immediately so they aren't auto-logged in!
       await signOut(auth); 
 
-      // 4. Navigate to Login
+      // Navigate to Login
       alert("Registration successful! Please log in with your credentials.");
       navigate('/login');
       
     } catch (err) {
-      // Professional error handling for existing accounts
+      
       let msg = "Failed to create account. Please try again.";
       if (err.code === 'auth/email-already-in-use') {
         msg = "This email is already registered. Please sign in instead.";
@@ -193,7 +193,7 @@ const Register = () => {
   );
 };
 
-// --- Styles (Maintained exactly as requested) ---
+// --- Styles ---
 const container = { minHeight: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#f9fafb', padding: '20px' };
 const formWrapper = { backgroundColor: '#fff', width: '100%', maxWidth: '480px', padding: '40px', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', textAlign: 'center' };
 const title = { fontSize: '24px', fontWeight: 'bold', margin: '0 0 8px 0', color: '#111' };
