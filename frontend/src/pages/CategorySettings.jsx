@@ -8,6 +8,9 @@ const CategorySettings = () => {
   const [activeTab, setActiveTab] = useState("expense"); 
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [newCategoryName, setNewCategoryName] = useState("");
+const [showColorPicker, setShowColorPicker] = useState(false);
+const [selectedColor, setSelectedColor] = useState("");
 
  
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
@@ -37,7 +40,7 @@ const CategorySettings = () => {
 
   const filteredCategories = categories.filter(cat => cat.type === activeTab);
 
-  const handleAddCategory = async () => {
+  /*const handleAddCategory = async () => {
     const name = prompt(`Enter new ${activeTab} category name:`);
     if (!name) return;
 
@@ -57,7 +60,42 @@ const CategorySettings = () => {
     } catch (err) {
       alert("Failed to add category.");
     }
-  };
+  };*/
+
+  const handleAddCategory = () => {
+  const name = prompt(`Enter new ${activeTab} category name:`);
+
+  if (!name) return;
+
+  setNewCategoryName(name);
+  setShowColorPicker(true);
+};
+
+const saveCategory = async () => {
+
+  const color =
+    selectedColor || `#${Math.floor(Math.random() * 16777215).toString(16)}`;
+
+  try {
+    const newCat = {
+      name: newCategoryName,
+      type: activeTab,
+      color: color,
+      firebaseId: user.uid
+    };
+
+    await api.post("/categories", newCat);
+
+    setShowColorPicker(false);
+    setSelectedColor("");
+    setNewCategoryName("");
+
+    fetchCategories();
+
+  } catch (err) {
+    alert("Failed to add category.");
+  }
+};
 
   const handleEdit = async (cat) => {
     const newName = prompt("Update category name:", cat.name);
@@ -147,6 +185,35 @@ const CategorySettings = () => {
           <p style={emptyText}>No {activeTab} categories found.</p>
         )}
       </div>
+
+      {showColorPicker && (
+  <div style={{ marginBottom: "20px" }}>
+    <p style={{ fontSize: "14px", marginBottom: "8px" }}>
+      Select a color or save category for random color.
+    </p>
+
+    <input
+      type="color"
+      value={selectedColor}
+      onChange={(e) => setSelectedColor(e.target.value)}
+    />
+
+    <button
+      onClick={saveCategory}
+      style={{
+        marginLeft: "10px",
+        padding: "6px 12px",
+        background: "#3b82f6",
+        color: "#fff",
+        border: "none",
+        borderRadius: "6px",
+        cursor: "pointer"
+      }}
+    >
+      Save Category
+    </button>
+  </div>
+)}
 
       <button onClick={handleAddCategory} style={addBtn}>
         + Add {activeTab === 'expense' ? 'Expense' : 'Income'} Category
