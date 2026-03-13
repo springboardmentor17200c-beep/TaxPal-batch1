@@ -24,9 +24,9 @@ exports.addTransaction = async (req, res) => {
 
     // E. Manually construct the object to ensure "firebaseId" is the key
     const newTx = new Transaction({
-      firebaseId: firebaseId, // Force the value here
+      firebaseId: firebaseId, 
       description: description,
-      amount: Number(amount), // Ensure it's a number
+      amount: Number(amount), 
       type: type,
       category: category,
       date: date || Date.now(),
@@ -47,8 +47,7 @@ exports.addTransaction = async (req, res) => {
 // 2. Get All Transactions
 exports.getTransactions = async (req, res) => {
   try {
-    // If you are using middleware that puts uid in req.user, use that.
-    // Otherwise, expect it as a query parameter from the frontend.
+   
     const firebaseId = req.user ? req.user.uid : req.query.firebaseId;
 
     if (!firebaseId) {
