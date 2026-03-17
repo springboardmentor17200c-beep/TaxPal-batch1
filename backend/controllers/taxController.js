@@ -6,32 +6,37 @@ const calculateNewRegimeTax = (annualIncome) => {
     const standardDeduction = 75000;
     let taxableIncome = Math.max(0, annualIncome - standardDeduction);
 
-    // Rebate Sec 87A: No tax if taxable income is <= 12,00,000
-    if (taxableIncome <= 1200000) return 0;
-
     let tax = 0;
 
-    // Slab 1: 4L - 8L (5%)
+    // Slab 1: Up to 4L → NIL
+    if (taxableIncome <= 400000) return 0;
+
+    // Slab 2: 4L - 8L (5%)
     if (taxableIncome > 400000) {
         tax += Math.min(taxableIncome - 400000, 400000) * 0.05;
     }
-    // Slab 2: 8L - 12L (10%)
+
+    // Slab 3: 8L - 12L (10%)
     if (taxableIncome > 800000) {
         tax += Math.min(taxableIncome - 800000, 400000) * 0.10;
     }
-    // Slab 3: 12L - 16L (15%)
+
+    // Slab 4: 12L - 16L (15%)
     if (taxableIncome > 1200000) {
         tax += Math.min(taxableIncome - 1200000, 400000) * 0.15;
     }
-    // Slab 4: 16L - 20L (20%)
+
+    // Slab 5: 16L - 20L (20%)
     if (taxableIncome > 1600000) {
         tax += Math.min(taxableIncome - 1600000, 400000) * 0.20;
     }
-    // Slab 5: 20L - 24L (25%)
+
+    // Slab 6: 20L - 24L (25%)
     if (taxableIncome > 2000000) {
         tax += Math.min(taxableIncome - 2000000, 400000) * 0.25;
     }
-    // Slab 6: Above 24L (30%)
+
+    // Slab 7: Above 24L (30%)
     if (taxableIncome > 2400000) {
         tax += (taxableIncome - 2400000) * 0.30;
     }
