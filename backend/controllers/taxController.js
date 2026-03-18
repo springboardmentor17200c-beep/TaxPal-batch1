@@ -1,4 +1,6 @@
 
+
+
 const TaxEstimate = require('../models/TaxEstimate');
 
 
@@ -6,37 +8,48 @@ const calculateNewRegimeTax = (annualIncome) => {
     const standardDeduction = 75000;
     let taxableIncome = Math.max(0, annualIncome - standardDeduction);
 
-    // Rebate Sec 87A: No tax if taxable income is <= 12,00,000
-    if (taxableIncome <= 1200000) return 0;
+    // 1. Section 87A Rebate: NIL tax for income up to 12 Lakhs
+    if (taxableIncome <= 1200000) {
+        return 0;
+    }
 
     let tax = 0;
 
-    // Slab 1: 4L - 8L (5%)
+    // 2. Progressive Slabs (Applicable if income > 12 Lakhs)
+    // 0 - 4L: Nil
+    // 4L - 8L: 5%
     if (taxableIncome > 400000) {
         tax += Math.min(taxableIncome - 400000, 400000) * 0.05;
     }
-    // Slab 2: 8L - 12L (10%)
+    // 8L - 12L: 10%
     if (taxableIncome > 800000) {
         tax += Math.min(taxableIncome - 800000, 400000) * 0.10;
     }
-    // Slab 3: 12L - 16L (15%)
+    // 12L - 16L: 15%
     if (taxableIncome > 1200000) {
         tax += Math.min(taxableIncome - 1200000, 400000) * 0.15;
     }
-    // Slab 4: 16L - 20L (20%)
+    // 16L - 20L: 20%
     if (taxableIncome > 1600000) {
         tax += Math.min(taxableIncome - 1600000, 400000) * 0.20;
     }
-    // Slab 5: 20L - 24L (25%)
+    // 20L - 24L: 25%
     if (taxableIncome > 2000000) {
         tax += Math.min(taxableIncome - 2000000, 400000) * 0.25;
     }
-    // Slab 6: Above 24L (30%)
+    // Above 24L: 30%
     if (taxableIncome > 2400000) {
         tax += (taxableIncome - 2400000) * 0.30;
     }
 
-    // Add 4% Health & Education Cess
+    // 3. Marginal Relief (Optional Logic)
+    // If income is slightly above 12L, tax cannot exceed the amount by which income exceeds 12L.
+    const excessOver12L = taxableIncome - 1200000;
+    if (tax > excessOver12L) {
+        tax = excessOver12L;
+    }
+
+    // 4. Add 4% Health & Education Cess
     return tax + (tax * 0.04);
 };
 
@@ -51,10 +64,8 @@ exports.calculateTax = async (req, res) => {
         const annualIncome = Number(income);
         const userDeductions = Number(deductions) || 0;
 
-
         const estimatedTax = calculateNewRegimeTax(annualIncome);
 
-        
         const newEstimate = new TaxEstimate({
             firebaseId,
             income: annualIncome,
@@ -62,14 +73,13 @@ exports.calculateTax = async (req, res) => {
             quarter: quarter || "Annual",
             year: year || "2025-26",
             estimatedTax: Math.round(estimatedTax),
-            status: 'pending'
+            status: 'pending' 
         });
 
         const savedEstimate = await newEstimate.save();
         res.status(201).json(savedEstimate);
 
     } catch (err) {
-        
         console.error("TAX_CALCULATION_ERROR:", err);
         res.status(500).json({ 
             message: "Internal Server Error", 
@@ -108,4 +118,4 @@ exports.updateTaxStatus = async (req, res) => {
         console.error("UPDATE_STATUS_ERROR:", err);
         res.status(500).json({ message: "Error updating status", error: err.message });
     }
-};   
+};
