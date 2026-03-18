@@ -65,6 +65,24 @@ const Home = () => {
             title="Secure Data"
             text="Firebase powered authentication and secure storage."
           />
+
+          <Feature
+            icon="📑"
+            title="Summary Reports"
+            text="Generate and download comprehensive summary reports."
+          />
+
+          <Feature
+            icon="📅"
+            title="Detailed Breakdowns"
+            text="View your finances with monthly and quarterly breakdowns."
+          />
+
+          <Feature
+            icon="📥"
+            title="Easy Exports"
+            text="Export your data seamlessly in PDF or CSV formats."
+          />
         </div>
       </section>
 
