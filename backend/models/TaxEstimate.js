@@ -1,15 +1,18 @@
 
 
-
 const mongoose = require('mongoose');
 
 const TaxEstimateSchema = new mongoose.Schema({
   firebaseId: { 
     type: String, 
-    required: true 
+    required: true,
+    index: true 
   },
   country: { 
     type: String, 
+    required: true,
+    // Matches the 5 regions in your frontend countryConfig
+    enum: ['India', 'United States', 'United Kingdom', 'Canada', 'Australia'],
     default: "India" 
   },
   year: { 
@@ -38,6 +41,16 @@ const TaxEstimateSchema = new mongoose.Schema({
     enum: ['pending', 'paid', 'calculated'], 
     default: 'pending' 
   }, 
-}, { timestamps: true });
+}, { 
+  timestamps: true 
+});
+
+/**
+ * Composite Index
+ * Ensures one unique record per User + Country + Year + Quarter.
+ * If a user recalculates for the same period, MongoDB will prevent 
+ * duplicate entries, allowing you to use 'upsert' logic in the controller.
+ */
+TaxEstimateSchema.index({ firebaseId: 1, country: 1, year: 1, quarter: 1 }, { unique: true });
 
 module.exports = mongoose.model('TaxEstimate', TaxEstimateSchema);
